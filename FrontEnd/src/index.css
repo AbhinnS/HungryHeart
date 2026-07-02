@@ -1,0 +1,42 @@
+@import "tailwindcss";
+
+@theme {
+  --color-cream: #fdf8f1;
+  --color-maroon: #800000;
+  --color-maroon-dark: #5c0000;
+  --color-green: #1b5e20;
+  --color-green-dark: #134016;
+  --color-brown: #5d4037;
+  --font-serif: "Playfair Display", Georgia, serif;
+  --font-sans: "Montserrat", system-ui, sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: var(--font-sans);
+  background-color: var(--color-cream);
+  color: #333;
+  -webkit-font-smoothing: antialiased;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-serif);
+}
+
+.font-serif {
+  font-family: var(--font-serif);
+}
+
+.bg-cream { background-color: var(--color-cream); }
+.text-maroon { color: var(--color-maroon); }
+.bg-maroon { background-color: var(--color-maroon); }
+.hover\:bg-maroon-dark:hover { background-color: var(--color-maroon-dark); }
+.text-green { color: var(--color-green); }
+.bg-green { background-color: var(--color-green); }
+.hover\:bg-green-dark:hover { background-color: var(--color-green-dark); }
+.bg-brown { background-color: var(--color-brown); }
+.border-maroon { border-color: var(--color-maroon); }
