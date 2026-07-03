@@ -13,7 +13,12 @@ app.use(cookieParser());
 app.use(
   cors({
     //origin: "http://localhost:5173",
-    origin: "https://hungryheart.in",
+    //
+    origin: [
+      "https://hungryheart.in",
+      "https://hungryheart.in/",
+      //"http://localhost:5173",
+    ],
     credentials: true,
   })
 );
