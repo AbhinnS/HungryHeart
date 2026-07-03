@@ -132,6 +132,17 @@ export const verifyOtp = async (req: Request, res: Response) => {
       token: generateToken(user._id.toString()),
     });
   } catch (error) {
-    res.status(500).json({ message: "Server error", error });
+  console.error("===== SEND OTP ERROR =====");
+  console.error(error);
+
+  if (error instanceof Error) {
+    console.error(error.message);
+    console.error(error.stack);
   }
+
+  res.status(500).json({
+    message: "Server error",
+    error: error instanceof Error ? error.message : String(error),
+  });
+}
 };
