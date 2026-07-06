@@ -1,53 +1,24 @@
-import nodemailer from "nodemailer";
-import dns from "node:dns";
+import { Resend } from "resend";
 
-const isSmtpConfigured = () =>
-  Boolean(
-    process.env.SMTP_HOST &&
-      process.env.SMTP_USER &&
-      process.env.SMTP_PASS
-  );
+const isResendConfigured = () => Boolean(process.env.RESEND_API_KEY);
 
-  const createTransporter = () => {
-    return nodemailer.createTransport({
-      // Bypasses DNS lookup completely to completely avoid Render's IPv6 issue
-      host: "74.125.130.108", // Public IPv4 address for smtp.gmail.com
-      port: 465,
-      secure: true, // true for port 465
-      auth: {
-        user: process.env.SMTP_USER,
-        pass: process.env.SMTP_PASS, // Reminder: This MUST be a 16-character Google App Password
-      },
-      tls: {
-        // Must provide servername, otherwise the TLS certificate check will fail
-        servername: "smtp.gmail.com",
-      },
-    });
-  };
-// const createTransporter = () =>
-//   nodemailer.createTransport({
-//     service: "gmail",
-//     auth: {
-//       user: process.env.SMTP_USER,
-//       pass: process.env.SMTP_PASS,
-//     },
-//   });
+const resend = isResendConfigured()
+  ? new Resend(process.env.RESEND_API_KEY)
+  : null;
 
 export const sendOtpEmail = async (
   email: string,
   otp: string
 ): Promise<{ sent: boolean; devMode: boolean }> => {
-  if (!isSmtpConfigured()) {
+  if (!isResendConfigured() || !resend) {
     console.log(`📧 [DEV OTP] ${email} → ${otp}`);
     return { sent: true, devMode: true };
   }
 
   try {
-    const transporter = createTransporter();
-    const from =
-      process.env.SMTP_FROM || `"Hungry Hearts" <${process.env.SMTP_USER}>`;
+    const from = process.env.SMTP_FROM || "Hungry Hearts <onboarding@resend.dev>";
 
-    await transporter.sendMail({
+    const { data, error } = await resend.emails.send({
       from,
       to: email,
       subject: "Your Hungry Hearts login code",
@@ -62,6 +33,12 @@ export const sendOtpEmail = async (
       `,
     });
 
+    if (error) {
+      console.error("Email send failed:", error);
+      return { sent: false, devMode: false };
+    }
+
+    console.log("Email sent:", data?.id);
     return { sent: true, devMode: false };
   } catch (error) {
     console.error("Email send failed:", error);
