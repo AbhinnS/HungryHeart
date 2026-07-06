@@ -1,26 +1,86 @@
-import { Resend } from "resend";
+import { google } from "googleapis";
 
-const isResendConfigured = () => Boolean(process.env.RESEND_API_KEY);
+const isGmailConfigured = () =>
+  Boolean(
+    process.env.GMAIL_CLIENT_ID &&
+      process.env.GMAIL_CLIENT_SECRET &&
+      process.env.GMAIL_REFRESH_TOKEN &&
+      process.env.GMAIL_USER
+  );
 
-const resend = isResendConfigured()
-  ? new Resend(process.env.RESEND_API_KEY)
-  : null;
+const getGmailClient = () => {
+  const oAuth2Client = new google.auth.OAuth2(
+    process.env.GMAIL_CLIENT_ID,
+    process.env.GMAIL_CLIENT_SECRET,
+    "https://developers.google.com/oauthplayground"
+  );
+
+  oAuth2Client.setCredentials({
+    refresh_token: process.env.GMAIL_REFRESH_TOKEN,
+  });
+
+  return google.gmail({ version: "v1", auth: oAuth2Client });
+};
+
+// Builds a raw base64url-encoded MIME message, which the Gmail API requires
+const buildRawMessage = ({
+  to,
+  from,
+  subject,
+  html,
+  text,
+}: {
+  to: string;
+  from: string;
+  subject: string;
+  html: string;
+  text: string;
+}) => {
+  const boundary = "boundary_hungryhearts_otp";
+
+  const message = [
+    `From: ${from}`,
+    `To: ${to}`,
+    `Subject: ${subject}`,
+    "MIME-Version: 1.0",
+    `Content-Type: multipart/alternative; boundary="${boundary}"`,
+    "",
+    `--${boundary}`,
+    "Content-Type: text/plain; charset=UTF-8",
+    "",
+    text,
+    "",
+    `--${boundary}`,
+    "Content-Type: text/html; charset=UTF-8",
+    "",
+    html,
+    "",
+    `--${boundary}--`,
+  ].join("\r\n");
+
+  return Buffer.from(message)
+    .toString("base64")
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=+$/, "");
+};
 
 export const sendOtpEmail = async (
   email: string,
   otp: string
 ): Promise<{ sent: boolean; devMode: boolean }> => {
-  if (!isResendConfigured() || !resend) {
+  if (!isGmailConfigured()) {
     console.log(`📧 [DEV OTP] ${email} → ${otp}`);
     return { sent: true, devMode: true };
   }
 
   try {
-    const from = process.env.SMTP_FROM || "Hungry Hearts <onboarding@resend.dev>";
+    const gmail = getGmailClient();
+    const from = `Hungry Hearts <${process.env.GMAIL_USER}>`;
 
-    const { data, error } = await resend.emails.send({
-      from,
+    const raw = buildRawMessage({
       to: email,
+      from,
       subject: "Your Hungry Hearts login code",
       text: `Your OTP is ${otp}. It is valid for 5 minutes. Do not share this code.`,
       html: `
@@ -33,12 +93,11 @@ export const sendOtpEmail = async (
       `,
     });
 
-    if (error) {
-      console.error("Email send failed:", error);
-      return { sent: false, devMode: false };
-    }
+    await gmail.users.messages.send({
+      userId: "me",
+      requestBody: { raw },
+    });
 
-    console.log("Email sent:", data?.id);
     return { sent: true, devMode: false };
   } catch (error) {
     console.error("Email send failed:", error);
