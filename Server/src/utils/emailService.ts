@@ -8,22 +8,20 @@ const isSmtpConfigured = () =>
       process.env.SMTP_PASS
   );
 
-  if (typeof dns.setDefaultResultOrder === "function") {
-    dns.setDefaultResultOrder("ipv4first");
-  }
-  
   const createTransporter = () => {
-    // Use explicit configuration rather than service: "gmail"
     return nodemailer.createTransport({
-      host: "smtp.gmail.com",
+      // Bypasses DNS lookup completely to completely avoid Render's IPv6 issue
+      host: "74.125.130.108", // Public IPv4 address for smtp.gmail.com
       port: 465,
       secure: true, // true for port 465
       auth: {
         user: process.env.SMTP_USER,
-        pass: process.env.SMTP_PASS, // MUST be your 16-character Google App Password
+        pass: process.env.SMTP_PASS, // Reminder: This MUST be a 16-character Google App Password
       },
-      // Backup enforcement for Nodemailer's internal lookup
-      connectionTimeout: 15000,
+      tls: {
+        // Must provide servername, otherwise the TLS certificate check will fail
+        servername: "smtp.gmail.com",
+      },
     });
   };
 // const createTransporter = () =>
