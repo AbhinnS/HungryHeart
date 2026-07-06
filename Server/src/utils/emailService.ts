@@ -1,4 +1,5 @@
 import nodemailer from "nodemailer";
+import dns from "node:dns";
 
 const isSmtpConfigured = () =>
   Boolean(
@@ -7,23 +8,24 @@ const isSmtpConfigured = () =>
       process.env.SMTP_PASS
   );
 
-  const createTransporter = () =>
-    nodemailer.createTransport({
+  if (typeof dns.setDefaultResultOrder === "function") {
+    dns.setDefaultResultOrder("ipv4first");
+  }
+  
+  const createTransporter = () => {
+    // Use explicit configuration rather than service: "gmail"
+    return nodemailer.createTransport({
       host: "smtp.gmail.com",
       port: 465,
       secure: true, // true for port 465
       auth: {
         user: process.env.SMTP_USER,
-        pass: process.env.SMTP_PASS, // Reminder: This MUST be a Google App Password
+        pass: process.env.SMTP_PASS, // MUST be your 16-character Google App Password
       },
-      // FORCE IPV4 ONLY TO FIX ENETUNREACH
-      connectionTimeout: 10000, 
-      greetingTimeout: 10000,
-      socketTimeout: 10000,
-      dns: {
-        family: 4 // Forces Node to look up IPv4 instead of IPv6
-      }
+      // Backup enforcement for Nodemailer's internal lookup
+      connectionTimeout: 15000,
     });
+  };
 // const createTransporter = () =>
 //   nodemailer.createTransport({
 //     service: "gmail",
