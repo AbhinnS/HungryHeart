@@ -3,8 +3,8 @@ import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import User from "../models/User.js";
 import Otp from "../models/Otp.js";
-import { normalizeEmail } from "../utils/email.js";
-import { sendOtpEmail } from "../utils/emailService.js";
+import { normalizeEmail } from "../utils/email.ts";
+import { sendOtpEmail } from "../utils/emailService.ts";
 
 const OTP_EXPIRY_MS = 5 * 60 * 1000;
 const MAX_VERIFY_ATTEMPTS = 5;
@@ -23,11 +23,14 @@ export const sendOtp = async (req: Request, res: Response) => {
     const email = normalizeEmail(req.body.email || "");
 
     if (!email) {
-      res.status(400).json({ message: "Enter a valid email address" });
-      return;
+      return res.status(400).json({
+        success: false,
+        message: "Enter a valid email address",
+      });
     }
 
     const recent = await Otp.findOne({ email }).sort({ createdAt: -1 });
+
     if (
       recent &&
       Date.now() - recent.createdAt!.getTime() < RESEND_COOLDOWN_MS
@@ -35,16 +38,19 @@ export const sendOtp = async (req: Request, res: Response) => {
       const wait = Math.ceil(
         (RESEND_COOLDOWN_MS - (Date.now() - recent.createdAt!.getTime())) / 1000
       );
-      res.status(429).json({
-        message: `Please wait ${wait}s before requesting another OTP`,
+
+      return res.status(429).json({
+        success: false,
+        message: `Please wait ${wait} seconds before requesting another OTP.`,
+        resendAfter: wait,
       });
-      return;
     }
 
     const otp = generateOtp();
     const otpHash = await bcrypt.hash(otp, 10);
 
     await Otp.deleteMany({ email });
+
     await Otp.create({
       email,
       otpHash,
@@ -55,20 +61,32 @@ export const sendOtp = async (req: Request, res: Response) => {
     const { sent, devMode } = await sendOtpEmail(email, otp);
 
     if (!sent) {
-      res.status(500).json({ message: "Failed to send OTP. Try again." });
-      return;
+      return res.status(500).json({
+        success: false,
+        message: "Unable to send OTP email. Please try again.",
+      });
     }
 
     const existingUser = await User.findOne({ email });
 
-    res.json({
-      message: "OTP sent successfully",
+    return res.status(200).json({
+      success: true,
+      message: "OTP sent successfully.",
       email,
       isNewUser: !existingUser,
+      expiresIn: 300,
+      resendAfter: 60,
       ...(devMode && { devOtp: otp }),
     });
   } catch (error) {
-    res.status(500).json({ message: "Server error", error });
+    console.error("===== SEND OTP ERROR =====");
+    console.error(error);
+
+    return res.status(500).json({
+      success: false,
+      message: "Internal server error.",
+      error: error instanceof Error ? error.message : String(error),
+    });
   }
 };
 
@@ -78,27 +96,37 @@ export const verifyOtp = async (req: Request, res: Response) => {
     const { otp, name } = req.body;
 
     if (!email || !otp) {
-      res.status(400).json({ message: "Email and OTP are required" });
-      return;
+      return res.status(400).json({
+        success: false,
+        message: "Email and OTP are required.",
+      });
     }
 
     const record = await Otp.findOne({ email }).sort({ createdAt: -1 });
 
     if (!record) {
-      res.status(400).json({ message: "OTP expired or not found. Request a new one." });
-      return;
+      return res.status(400).json({
+        success: false,
+        message: "OTP expired or not found. Please request a new OTP.",
+      });
     }
 
     if (record.expiresAt < new Date()) {
       await Otp.deleteMany({ email });
-      res.status(400).json({ message: "OTP expired. Request a new one." });
-      return;
+
+      return res.status(400).json({
+        success: false,
+        message: "OTP has expired. Please request a new OTP.",
+      });
     }
 
     if (record.attempts >= MAX_VERIFY_ATTEMPTS) {
       await Otp.deleteMany({ email });
-      res.status(429).json({ message: "Too many attempts. Request a new OTP." });
-      return;
+
+      return res.status(429).json({
+        success: false,
+        message: "Too many incorrect attempts. Please request a new OTP.",
+      });
     }
 
     const valid = await bcrypt.compare(String(otp), record.otpHash);
@@ -106,43 +134,51 @@ export const verifyOtp = async (req: Request, res: Response) => {
     if (!valid) {
       record.attempts += 1;
       await record.save();
-      res.status(400).json({
-        message: `Invalid OTP. ${MAX_VERIFY_ATTEMPTS - record.attempts} attempts left.`,
+
+      return res.status(400).json({
+        success: false,
+        message: `Invalid OTP. ${
+          MAX_VERIFY_ATTEMPTS - record.attempts
+        } attempts remaining.`,
       });
-      return;
     }
 
     let user = await User.findOne({ email });
 
     if (!user) {
       if (!name?.trim()) {
-        res.status(200).json({ isNewUser: true, email, needsName: true });
-        return;
+        return res.status(200).json({
+          success: true,
+          isNewUser: true,
+          email,
+          needsName: true,
+        });
       }
 
-      user = await User.create({ name: name.trim(), email });
+      user = await User.create({
+        name: name.trim(),
+        email,
+      });
     }
 
     await Otp.deleteMany({ email });
 
-    res.json({
+    return res.status(200).json({
+      success: true,
+      message: "OTP verified successfully.",
       _id: user._id,
       name: user.name,
       email: user.email,
       token: generateToken(user._id.toString()),
     });
   } catch (error) {
-  console.error("===== SEND OTP ERROR =====");
-  console.error(error);
+    console.error("===== VERIFY OTP ERROR =====");
+    console.error(error);
 
-  if (error instanceof Error) {
-    console.error(error.message);
-    console.error(error.stack);
+    return res.status(500).json({
+      success: false,
+      message: "Internal server error.",
+      error: error instanceof Error ? error.message : String(error),
+    });
   }
-
-  res.status(500).json({
-    message: "Server error",
-    error: error instanceof Error ? error.message : String(error),
-  });
-}
 };

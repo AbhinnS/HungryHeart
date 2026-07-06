@@ -17,7 +17,7 @@ app.use(
     origin: [
       "https://hungryheart.in",
       "https://hungryheart.in/",
-      //"http://localhost:5173",
+      "http://localhost:5173",
     ],
     credentials: true,
   })
