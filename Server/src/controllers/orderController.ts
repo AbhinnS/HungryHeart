@@ -14,20 +14,35 @@ export const createOrder = async (req: AuthRequest, res: Response) => {
       deliveryTime,
       paymentMethod,
       specialInstructions,
+      phoneNumber,
     } = req.body;
 
     if (!items?.length || !deliveryAddress || !paymentMethod) {
       res.status(400).json({ message: "Missing required order fields" });
       return;
     }
+    if (
+      !items?.length ||
+      !deliveryAddress ||
+      !paymentMethod ||
+      !phoneNumber
+    ) {
+      return res.status(400).json({
+        message: "Missing required order fields",
+      });
+    } 
 
     const order = await Order.create({
       user: req.userId,
+    
+      phoneNumber,
+    
       items,
       subtotal,
       tax,
       deliveryCharge,
       total,
+    
       deliveryAddress,
       deliveryTime: deliveryTime || "ASAP",
       paymentMethod,

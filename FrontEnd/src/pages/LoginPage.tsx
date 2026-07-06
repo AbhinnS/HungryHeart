@@ -1,4 +1,4 @@
-import { Link } from "react-router-dom";
+
 import OtpAuthForm from "../components/auth/OtpAuthForm";
 
 export default function LoginPage() {
@@ -17,18 +17,12 @@ export default function LoginPage() {
             HUNGRY HEARTS
           </p>
           <h1 className="font-serif text-3xl text-maroon font-bold mb-2">
-            Welcome Back
+            Welcome
           </h1>
           <p className="text-gray-500 text-sm mb-6">
             Login with your email. We'll send you a one-time password.
           </p>
           <OtpAuthForm mode="login" redirectTo="/" />
-          <p className="text-sm text-gray-600 mt-6 text-center">
-            New here?{" "}
-            <Link to="/signup" className="text-maroon font-medium hover:underline">
-              Create an account
-            </Link>
-          </p>
         </div>
       </div>
     </div>
